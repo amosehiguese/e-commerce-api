@@ -1,0 +1,47 @@
+run:
+  timeout: 30m
+
+issues:
+  max-same-issues: 0
+  exclude-rules:
+    - path: conversion\.go
+      linters: [ineffassign]
+    - text: "S1000" 
+      linters:
+        - gosimple
+  exclude-files:
+    - ^zz_generated.*
+
+linters:
+  disable-all: true
+  enable:
+    - errorlint       
+    - gofumpt         
+    - goimports       
+    - gosimple        
+    - ineffassign     
+    - revive          
+    - staticcheck     
+    - testifylint     
+    - unconvert       
+    - unused          
+    - whitespace      
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/amosehiguese/ecommerce-api
+  revive:
+    severity: error
+    enable-all-rules: false
+    rules:
+      - name: blank-imports
+      - name: error-return
+      - name: receiver-naming
+      - name: time-naming
+  staticcheck:
+    checks:
+      - all
+      - -SA1019 
+      - -SA2002 
+  testifylint:
+    enable-all: true
