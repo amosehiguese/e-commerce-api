@@ -1,10 +1,15 @@
 package config
 
-import "github.com/amosehiguese/ecommerce-api/pkg/utils"
+import (
+	"fmt"
+	"os"
+
+	"github.com/amosehiguese/ecommerce-api/pkg/utils"
+)
 
 type databaseConfig struct {
 	Host     string
-	Port     string
+	Port     int
 	User     string
 	Password string
 	Name     string
@@ -13,12 +18,20 @@ type databaseConfig struct {
 
 func setDatabaseConfig() *databaseConfig {
 	var d databaseConfig
-	utils.MustMapEnv(&d.Host, "DATABASE_HOST")
-	utils.MustMapEnv(&d.Port, "DATABASE_PORT")
-	utils.MustMapEnv(&d.User, "DATABASE_USER")
-	utils.MustMapEnv(&d.Password, "DATABASE_PASSWORD")
-	utils.MustMapEnv(&d.Name, "DATABASE_NAME")
-	utils.MustMapEnv(&d.SslMode, "DATABASE_SSLMODE")
+	utils.MustMapEnv(&d.Host, "DB_HOST")
+	utils.MustMapEnv(&d.User, "DB_USER")
+	utils.MustMapEnv(&d.Password, "DB_PASSWORD")
+	utils.MustMapEnv(&d.SslMode, "DB_SSLMODE")
+	d.Port = utils.GetEnvAsInt("DB_PORT")
+	d.Name = os.Getenv("DB_NAME")
 
 	return &d
+}
+
+func (d *databaseConfig) ConnString() string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s", d.User, d.Password, d.Host, d.Port, d.Name, d.SslMode)
+}
+
+func (d *databaseConfig) ConnStringDefaultDB() string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/postgres?sslmode=%s", d.User, d.Password, d.Host, d.Port, d.SslMode)
 }

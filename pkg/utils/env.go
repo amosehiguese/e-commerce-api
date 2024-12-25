@@ -2,37 +2,9 @@ package utils
 
 import (
 	"fmt"
-	"log"
 	"os"
-
-	"github.com/joho/godotenv"
+	"strconv"
 )
-
-func LoadEnvVars() {
-	env := os.Getenv("ECOMM_ENV")
-	if env == "" {
-		env = "development"
-	}
-
-	switch env {
-	case "production":
-		err := godotenv.Load(".env.prod")
-		if err != nil {
-			log.Printf("No .env.prod file found")
-		}
-
-	case "development":
-		err := godotenv.Load(".env.dev")
-		if err != nil {
-			log.Printf("No .env.dev file")
-		}
-	}
-
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatalf("Error loading .env file")
-	}
-}
 
 func MustMapEnv(target *string, envKey string) {
 	v := os.Getenv(envKey)
@@ -41,4 +13,18 @@ func MustMapEnv(target *string, envKey string) {
 	}
 
 	*target = v
+}
+
+func GetEnvAsInt(envKey string) int {
+	v := os.Getenv(envKey)
+	if v == "" {
+		panic(fmt.Sprintf("environment variable %q not set", envKey))
+	}
+
+	val, err := strconv.Atoi(v)
+	if err != nil {
+		panic(fmt.Sprintf("failed to convert %q", envKey))
+	}
+
+	return val
 }

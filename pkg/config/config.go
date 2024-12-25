@@ -1,6 +1,8 @@
 package config
 
-import "github.com/amosehiguese/ecommerce-api/pkg/utils"
+import (
+	"github.com/amosehiguese/ecommerce-api/pkg/utils"
+)
 
 type Config struct {
 	Env      string
@@ -21,7 +23,7 @@ func initConfig() *Config {
 }
 
 func Get() *Config {
-	if c.Server == nil || c.Database == nil {
+	if c.Server == nil || c.Database == nil || c.JWT == nil {
 		c = *initConfig()
 	}
 	return &c
