@@ -21,12 +21,12 @@ type Token struct {
 }
 
 func GenerateNewToken(id string, role Role) (*Token, error) {
-	accessToken, err := generateAccessToken(id, role)
+	accessToken, err := GenerateAccessToken(id, role)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, err := generateRefreshToken()
+	refreshToken, err := GenerateRefreshToken()
 	if err != nil {
 		return nil, err
 	}
@@ -37,9 +37,12 @@ func GenerateNewToken(id string, role Role) (*Token, error) {
 	}, nil
 }
 
-func generateAccessToken(id string, role Role) (string, error) {
+func GenerateAccessToken(id string, role Role) (string, error) {
 	config := config.Get().JWT
 	credentials, err := GetRoleCredentials(role)
+	if err != nil {
+		return "", err
+	}
 
 	minCount, err := strconv.Atoi(config.JwtSecretKeyExp)
 	if err != nil {
@@ -74,7 +77,7 @@ func generateAccessToken(id string, role Role) (string, error) {
 	return t, nil
 }
 
-func generateRefreshToken() (string, error) {
+func GenerateRefreshToken() (string, error) {
 	config := config.Get().JWT
 	hash := sha256.New()
 	refresh := config.JwtRefreshKey + time.Now().String()
@@ -99,7 +102,7 @@ func ParseRefreshToken(refreshToken string) (int64, error) {
 	return strconv.ParseInt(strings.Split(refreshToken, ".")[1], 0, 64)
 }
 
-func AttachToCookie(c *gin.Context, token string) {
+func AttachToCookie(c *gin.Context, accessToken string, refreshToken string) {
 	cfg := config.Get()
 	log := logger.Get()
 
@@ -110,23 +113,35 @@ func AttachToCookie(c *gin.Context, token string) {
 		return
 	}
 
-	expiresAt := time.Now().Add(time.Duration(accessExp) * time.Hour)
+	accessExpiresAt := time.Now().Add(time.Duration(accessExp) * time.Hour)
 
 	c.SetCookie(
 		"access",
-		token,
-		int(expiresAt.Sub(time.Now()).Seconds()),
+		accessToken,
+		int(time.Until(accessExpiresAt).Seconds()),
 		"/",
 		cfg.Domain,
 		cfg.Env == "prod",
 		true,
 	)
 
-	log.Info("Access token stored in cookie")
+	refreshExpiresAt := time.Now().Add(30 * 24 * time.Hour)
+
+	c.SetCookie(
+		"refresh",
+		refreshToken,
+		int(time.Until(refreshExpiresAt).Seconds()),
+		"/",
+		cfg.Domain,
+		cfg.Env == "prod",
+		true,
+	)
+
+	log.Info("Access and refresh tokens stored in cookies")
 }
 
 func InvalidateTokenCookies(c *gin.Context) {
-	log := c.MustGet("logger").(*zap.Logger)
+	log := logger.Get()
 
 	c.SetCookie(
 		"access",
@@ -138,5 +153,15 @@ func InvalidateTokenCookies(c *gin.Context) {
 		true,
 	)
 
-	log.Info("Cookie Invalidated!")
+	c.SetCookie(
+		"refresh",
+		"",
+		-1,
+		"/",
+		"",
+		true,
+		true,
+	)
+
+	log.Info("Access and refresh tokens cookies invalidated!")
 }

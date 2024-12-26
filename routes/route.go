@@ -34,7 +34,7 @@ func SetUp(dbconn *sql.DB, cfg *config.Config) *gin.Engine {
 	RegisterAuthRoutes(public, a)
 
 	// Protected routes (authentication required)
-	auth := router.Group("/api", middleware.AuthenticateJWT())
+	auth := router.Group("/api", middleware.JWTProtected())
 	{
 		RegisterProductRoutes(auth, a)
 		RegisterOrderRoutes(auth, a)

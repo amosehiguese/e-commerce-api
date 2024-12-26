@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/amosehiguese/ecommerce-api/pkg/logger"
+	"github.com/amosehiguese/ecommerce-api/pkg/utils"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
@@ -20,6 +22,17 @@ type User struct {
 	Role         string    `json:"role" validate:"required,oneof=user admin"`
 	CreatedAt    time.Time `json:"created_at" validate:"required"`
 	UpdatedAt    time.Time `json:"updated_at" validate:"required"`
+}
+
+func (u *User) ComparePasswordHash(inputPwd string) bool {
+	userPassword := utils.NormalizePassword(u.PasswordHash)
+	inputPassword := utils.NormalizePassword(inputPwd)
+
+	if err := bcrypt.CompareHashAndPassword(userPassword, inputPassword); err != nil {
+		return false
+	}
+	return true
+
 }
 
 func (q *Query) CreateUser(ctx context.Context, user *User) (*User, error) {

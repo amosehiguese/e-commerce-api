@@ -2,7 +2,6 @@ package auth
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/amosehiguese/ecommerce-api/pkg/config"
 	"github.com/gin-gonic/gin"
@@ -13,12 +12,12 @@ import (
 type TokenMetadata struct {
 	UserID      uuid.UUID
 	Credentials map[string]bool
+	Role        string
 	Exp         int64
 }
 
-// ExtractTokenMetadata extracts token metadata from the Authorization header.
-func ExtractTokenMetadata(c *gin.Context) (*TokenMetadata, error) {
-	token, err := verifyToken(c)
+func ExtractTokenMetadata(c *gin.Context, name string) (*TokenMetadata, error) {
+	token, err := verifyToken(c, name)
 	if err != nil {
 		return nil, err
 	}
@@ -31,6 +30,7 @@ func ExtractTokenMetadata(c *gin.Context) (*TokenMetadata, error) {
 		}
 
 		exp := int64(claims["exp"].(float64))
+		role := claims["role"].(string)
 
 		credentials := map[string]bool{
 			// Product Permissions
@@ -49,6 +49,7 @@ func ExtractTokenMetadata(c *gin.Context) (*TokenMetadata, error) {
 		return &TokenMetadata{
 			UserID:      userID,
 			Credentials: credentials,
+			Role:        role,
 			Exp:         exp,
 		}, nil
 	}
@@ -56,23 +57,11 @@ func ExtractTokenMetadata(c *gin.Context) (*TokenMetadata, error) {
 	return nil, errors.New("invalid token")
 }
 
-// extractToken retrieves the JWT from the Authorization header.
-func extractToken(c *gin.Context) string {
-	bearer := c.GetHeader("Authorization")
-	token := strings.Split(bearer, " ")
-	if len(token) == 2 {
-		return token[1]
-	}
-	return ""
-}
-
-// verifyToken parses and validates the JWT using the secret key.
-func verifyToken(c *gin.Context) (*jwt.Token, error) {
+func verifyToken(c *gin.Context, name string) (*jwt.Token, error) {
 	config := config.Get().JWT
-	tokenString := extractToken(c)
-
-	if tokenString == "" {
-		return nil, errors.New("missing or malformed token")
+	tokenString, err := extractToken(c, name)
+	if err != nil {
+		return nil, err
 	}
 
 	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
@@ -81,6 +70,15 @@ func verifyToken(c *gin.Context) (*jwt.Token, error) {
 
 	if err != nil {
 		return nil, err
+	}
+
+	return token, nil
+}
+
+func extractToken(c *gin.Context, name string) (string, error) {
+	token, err := c.Cookie(name)
+	if err != nil {
+		return "", errors.New("missing JWT")
 	}
 
 	return token, nil

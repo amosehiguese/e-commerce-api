@@ -109,7 +109,6 @@ func (api *API) Login(c *gin.Context) {
 		return
 	}
 
-	// Get user by email
 	u, err := api.Q.GetUserByEmail(ctx, loginPayload.Email)
 	if err != nil {
 		log.Error("user with the given email not found", zap.Error(err))
@@ -128,7 +127,16 @@ func (api *API) Login(c *gin.Context) {
 		return
 	}
 
-	_, err = auth.GenerateNewToken(u.ID.String(), role)
+	if !u.ComparePasswordHash(loginPayload.Password) {
+		log.Error("Password mismatch", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": true,
+			"msg":   "Invalid credentials",
+		})
+		return
+	}
+
+	token, err := auth.GenerateNewToken(u.ID.String(), role)
 	if err != nil {
 		log.Error("Failed to generate tokens", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -138,5 +146,22 @@ func (api *API) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": "JWT_TOKEN_HERE"})
+	auth.AttachToCookie(c, token.Access, token.Refresh)
+
+	c.JSON(http.StatusOK, gin.H{
+		"error": false,
+		"tokens": gin.H{
+			"access": token.Access,
+		},
+		"user": gin.H{
+			"id":    u.ID,
+			"email": u.Email,
+			"role":  u.Role,
+		},
+	})
+}
+
+func (api *API) Logout(c *gin.Context) {
+	auth.InvalidateTokenCookies(c)
+	c.Status(204)
 }
