@@ -17,7 +17,6 @@ type Order struct {
 	UpdatedAt   time.Time       `json:"updated_at" validate:"required"`
 }
 
-// CreateOrder inserts a new order into the database.
 func (q *Query) CreateOrder(ctx context.Context) error {
 	var order Order
 	query := `

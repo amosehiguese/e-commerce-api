@@ -5,6 +5,7 @@ import (
 )
 
 type Config struct {
+	Domain   string
 	Env      string
 	Server   *serverConfig
 	Database *databaseConfig
@@ -18,6 +19,7 @@ func initConfig() *Config {
 	c.Database = setDatabaseConfig()
 	c.JWT = setJwtConfig()
 	utils.MustMapEnv(&c.Env, "ECOMM_ENV")
+	utils.MustMapEnv(&c.Domain, "DOMAIN")
 
 	return &c
 }

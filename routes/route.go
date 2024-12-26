@@ -30,7 +30,7 @@ func SetUp(dbconn *sql.DB, cfg *config.Config) *gin.Engine {
 	router.GET("/_healthz", a.HealthCheck)
 
 	// Public routes
-	public := router.Group("/api/users")
+	public := router.Group("/api/auth")
 	RegisterAuthRoutes(public, a)
 
 	// Protected routes (authentication required)

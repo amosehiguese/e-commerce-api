@@ -33,10 +33,17 @@ func ExtractTokenMetadata(c *gin.Context) (*TokenMetadata, error) {
 		exp := int64(claims["exp"].(float64))
 
 		credentials := map[string]bool{
-			// User Permissions
-			"user:create": claims["user:create"].(bool),
-			"user:read":   claims["user:read"].(bool),
-			"user:update": claims["user:update"].(bool),
+			// Product Permissions
+			"product:create": claims["product:create"].(bool),
+			"product:read":   claims["product:read"].(bool),
+			"product:update": claims["product:update"].(bool),
+			"product:delete": claims["product:delete"].(bool),
+
+			// Order Permissions
+			"order:create": claims["order:create"].(bool),
+			"order:read":   claims["order:create"].(bool),
+			"order:update": claims["order:create"].(bool),
+			"order:cancel": claims["order:create"].(bool),
 		}
 
 		return &TokenMetadata{

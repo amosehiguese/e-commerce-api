@@ -4,6 +4,10 @@ import "fmt"
 
 type Role string
 
+func (r Role) String() string {
+	return string(r)
+}
+
 const (
 	UserRole  Role = "user"
 	AdminRole Role = "admin"
