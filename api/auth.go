@@ -16,6 +16,17 @@ import (
 	"go.uber.org/zap"
 )
 
+// Register godoc
+// @Summary Register a new user
+// @Description Registers a new user with the provided details
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param registerPayload body payload.RegisterPayload true "User Registration Data"
+// @Success 200 {object} gin.H{"error": false, "msg": "User created successfully", "user": "user_id"}
+// @Failure 400 {object} gin.H{"error": true, "msg": "error message"}
+// @Failure 500 {object} gin.H{"error": true, "msg": "error message"}
+// @Router /api/auth/register [post]
 func (a *API) Register(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -86,6 +97,17 @@ func (a *API) Register(c *gin.Context) {
 	})
 }
 
+// Login godoc
+// @Summary User Login
+// @Description Logs in an existing user and returns the access token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param loginPayload body payload.LoginPayload true "User Login Data"
+// @Success 200 {object} gin.H{"error": false, "tokens": {"access": "access_token"}, "user": {"id": "user_id", "email": "email", "role": "role"}}
+// @Failure 400 {object} gin.H{"error": true, "msg": "error message"}
+// @Failure 500 {object} gin.H{"error": true, "msg": "error message"}
+// @Router /api/auth/login [post]
 func (api *API) Login(c *gin.Context) {
 	log := logger.Get()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -161,6 +183,14 @@ func (api *API) Login(c *gin.Context) {
 	})
 }
 
+// Logout godoc
+// @Summary User Logout
+// @Description Logs out the current user and invalidates their session
+// @Tags auth
+// @Security CookieAuth
+// @Success 204 {object} gin.H{}
+// @Failure 400 {object} gin.H{"error": true, "msg": "error message"}
+// @Router api/auth/logout [post]
 func (api *API) Logout(c *gin.Context) {
 	auth.InvalidateTokenCookies(c)
 	c.Status(204)

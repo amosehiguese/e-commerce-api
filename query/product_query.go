@@ -20,11 +20,7 @@ type Product struct {
 }
 
 // CreateProduct inserts a new product into the database.
-func (q *Query) CreateProduct(ctx context.Context) error {
-	var product Product
-	product.ID = uuid.New()
-	product.CreatedAt = time.Now()
-	product.UpdatedAt = time.Now()
+func (q *Query) CreateProduct(ctx context.Context, product *Product) error {
 
 	query := `
 		INSERT INTO "product" (id, name, description, price, units_in_stock, created_at, updated_at)
@@ -55,7 +51,7 @@ func (q *Query) GetProductByID(ctx context.Context, productID uuid.UUID) (*Produ
 }
 
 // GetAllProducts fetches all products from the database.
-func (q *Query) GetAllProducts(ctx context.Context, db *sql.DB) ([]Product, error) {
+func (q *Query) GetAllProducts(ctx context.Context) ([]Product, error) {
 	query := `
 		SELECT id, name, description, price, units_in_stock, created_at, updated_at
 		FROM "product"
@@ -79,8 +75,7 @@ func (q *Query) GetAllProducts(ctx context.Context, db *sql.DB) ([]Product, erro
 }
 
 // UpdateProduct updates the product's details in the database.
-func (q *Query) UpdateProduct(ctx context.Context) error {
-	var product Product
+func (q *Query) UpdateProduct(ctx context.Context, product *Product) error {
 	query := `
 		UPDATE "product"
 		SET name = $1, description = $2, price = $3, units_in_stock = $4, updated_at = $5
