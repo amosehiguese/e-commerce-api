@@ -6,7 +6,7 @@ issues:
   exclude-rules:
     - path: conversion\.go
       linters: [ineffassign]
-    - text: "S1000" 
+    - text: "S1000"
       linters:
         - gosimple
   exclude-files:
@@ -15,17 +15,15 @@ issues:
 linters:
   disable-all: true
   enable:
-    - errorlint       
-    - gofumpt         
-    - goimports       
-    - gosimple        
-    - ineffassign     
-    - revive          
-    - staticcheck     
-    - testifylint     
-    - unconvert       
-    - unused          
-    - whitespace      
+    - errorlint
+    - gofumpt
+    - goimports
+    - gosimple
+    - ineffassign
+    - revive
+    - staticcheck
+    - unconvert
+    - unused
 
 linters-settings:
   goimports:
@@ -41,7 +39,7 @@ linters-settings:
   staticcheck:
     checks:
       - all
-      - -SA1019 
-      - -SA2002 
+      - -SA1019
+      - -SA2002
   testifylint:
     enable-all: true

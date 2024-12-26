@@ -4,7 +4,9 @@ import (
 	"database/sql"
 
 	"github.com/amosehiguese/ecommerce-api/api"
+	"github.com/amosehiguese/ecommerce-api/middleware"
 	"github.com/amosehiguese/ecommerce-api/pkg/config"
+	"github.com/amosehiguese/ecommerce-api/query"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
@@ -18,8 +20,25 @@ func SetUp(dbconn *sql.DB, cfg *config.Config) *gin.Engine {
 	router.Use(gin.Recovery())
 	router.Use(gin.Logger())
 
-	// Routes
-	router.GET("/_healthz", api.HealthCheck)
+	// Initialize Query
+	q := query.NewQuery(dbconn)
+
+	// Initialize API
+	a := api.NewAPI(q, cfg)
+
+	// Health
+	router.GET("/_healthz", a.HealthCheck)
+
+	// Public routes
+	public := router.Group("/api/users")
+	RegisterAuthRoutes(public, a)
+
+	// Protected routes (authentication required)
+	auth := router.Group("/api", middleware.AuthenticateJWT())
+	{
+		RegisterProductRoutes(auth, a)
+		RegisterOrderRoutes(auth, a)
+	}
 
 	return router
 }

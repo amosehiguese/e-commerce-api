@@ -5,6 +5,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- User Table
 CREATE TABLE "user" (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100),
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL DEFAULT 'user',
@@ -20,7 +22,7 @@ CREATE TABLE "product" (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     price NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
-    product_quantity INT NOT NULL DEFAULT 0,
+    units_in_stock INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -46,7 +48,7 @@ CREATE TABLE "order" (
 CREATE INDEX idx_order_user_id ON "order"(user_id);
 CREATE INDEX idx_order_status ON "order"(status);
 
--- Order Items Table (For associating products with orders)
+-- Order Items Table
 CREATE TABLE "order_item" (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_id UUID NOT NULL,
