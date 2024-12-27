@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/amosehiguese/ecommerce-api/pkg/config"
 	"github.com/gin-gonic/gin"
@@ -16,8 +17,8 @@ type TokenMetadata struct {
 	Exp         int64
 }
 
-func ExtractTokenMetadata(c *gin.Context, name string) (*TokenMetadata, error) {
-	token, err := verifyToken(c, name)
+func ExtractTokenMetadata(c *gin.Context) (*TokenMetadata, error) {
+	token, err := verifyToken(c)
 	if err != nil {
 		return nil, err
 	}
@@ -41,9 +42,8 @@ func ExtractTokenMetadata(c *gin.Context, name string) (*TokenMetadata, error) {
 
 			// Order Permissions
 			"order:create": claims["order:create"].(bool),
-			"order:read":   claims["order:create"].(bool),
-			"order:update": claims["order:create"].(bool),
-			"order:cancel": claims["order:create"].(bool),
+			"order:read":   claims["order:read"].(bool),
+			"order:update": claims["order:update"].(bool),
 		}
 
 		return &TokenMetadata{
@@ -57,29 +57,23 @@ func ExtractTokenMetadata(c *gin.Context, name string) (*TokenMetadata, error) {
 	return nil, errors.New("invalid token")
 }
 
-func verifyToken(c *gin.Context, name string) (*jwt.Token, error) {
+func verifyToken(c *gin.Context) (*jwt.Token, error) {
 	config := config.Get().JWT
-	tokenString, err := extractToken(c, name)
-	if err != nil {
-		return nil, err
-	}
+	tokenString := extractToken(c)
 
-	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
+	token, _ := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
 		return []byte(config.JwtSecretKey), nil
 	})
-
-	if err != nil {
-		return nil, err
-	}
 
 	return token, nil
 }
 
-func extractToken(c *gin.Context, name string) (string, error) {
-	token, err := c.Cookie(name)
-	if err != nil {
-		return "", errors.New("missing JWT")
+func extractToken(c *gin.Context) string {
+	bearer := c.GetHeader("Authorization")
+	token := strings.Split(bearer, " ")
+	if len(token) == 2 {
+		return token[1]
 	}
 
-	return token, nil
+	return ""
 }

@@ -1,5 +1,10 @@
 package payload
 
+import (
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+)
+
 type RegisterPayload struct {
 	FirstName string `json:"first_name" binding:"required"`
 	LastName  string `json:"last_name,omitempty"`
@@ -20,7 +25,28 @@ type ProductPayload struct {
 	UnitsInStock int     `json:"units_in_stock" binding:"required,gt=0"`
 }
 
+type OrderUpdatePayload struct {
+	Status string `json:"status" validate:"required,oneof=pending completed cancelled"`
+}
+
 type OrderPayload struct {
-	ProductIDs []int `json:"product_ids" binding:"required,min=1"` // IDs of products being ordered
-	Quantity   []int `json:"quantity" binding:"required,min=1"`    // Corresponding quantities
+	Items []OrderItemPayload `json:"items" validate:"required,dive"`
+}
+
+type OrderItemPayload struct {
+	ProductID uuid.UUID `json:"product_id" validate:"required,uuid4"`
+	Quantity  int       `json:"quantity" validate:"required,gt=0"`
+	Price     float64   `json:"price" validate:"required,gt=0"`
+}
+
+func (o *OrderPayload) CalculateOrderTotal() decimal.Decimal {
+	total := decimal.NewFromInt(0)
+
+	for _, item := range o.Items {
+		price := decimal.NewFromFloat(item.Price)
+		itemTotal := price.Mul(decimal.NewFromInt(int64(item.Quantity)))
+		total = total.Add(itemTotal)
+	}
+
+	return total
 }

@@ -1,14 +1,18 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/amosehiguese/ecommerce-api/api/payload"
 	"github.com/amosehiguese/ecommerce-api/pkg/auth"
 	"github.com/amosehiguese/ecommerce-api/pkg/logger"
+	"github.com/amosehiguese/ecommerce-api/pkg/validator"
 	"github.com/amosehiguese/ecommerce-api/query"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 )
 
@@ -27,45 +31,62 @@ import (
 // @Failure 500 {object} gin.H{"error": true, "msg": "error message"}
 // @Router /api/products [post]
 func (api *API) CreateProduct(c *gin.Context) {
+	now := time.Now().Unix()
+	fmt.Println("Now", now)
 	log := logger.Get()
 
 	// Extract claims from the token
-	claims, err := auth.ExtractTokenMetadata(c, "access")
+	claims, err := auth.ExtractTokenMetadata(c)
 	if err != nil {
 		log.Error("Error extracting token metadata", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": true, "msg": err.Error()})
 		return
 	}
-
+	fmt.Println("claim exp", claims.Exp)
+	fmt.Println("Greater", now > claims.Exp)
 	// Check token expiration
-	if time.Now().Unix() > claims.Exp {
+	if now > claims.Exp {
 		log.Warn("Token expired", zap.Int64("expiration", claims.Exp))
 		c.JSON(http.StatusUnauthorized, gin.H{"error": true, "msg": "unauthorized, token expired"})
 		return
 	}
 
 	// Check if the user has permission to create a product
-	if !claims.Credentials["product:create"] {
+	if !claims.Credentials[auth.ProductCreateCredential] {
 		log.Warn("Permission denied for product creation", zap.String("role", claims.Role))
 		c.JSON(http.StatusForbidden, gin.H{"error": true, "msg": "permission denied"})
 		return
 	}
 
 	// Bind the JSON request to the product struct
-	var product query.Product
-	if err := c.ShouldBindJSON(&product); err != nil {
+	var productPayload payload.ProductPayload
+	if err := c.ShouldBindJSON(&productPayload); err != nil {
 		log.Error("Invalid JSON for product", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": true, "msg": err.Error()})
 		return
 	}
 
-	// Set the ID and created/updated timestamps
-	product.ID = uuid.New()
-	product.CreatedAt = time.Now()
-	product.UpdatedAt = time.Now()
+	validate := validator.NewValidator()
+	if err := validate.Struct(productPayload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": true,
+			"msg":   validator.ValidatorErrors(err),
+		})
+		return
+	}
+
+	product := &query.Product{
+		ID:           uuid.New(),
+		UpdatedAt:    time.Now(),
+		CreatedAt:    time.Now(),
+		Name:         productPayload.Name,
+		Description:  &productPayload.Description,
+		Price:        decimal.NewFromFloat(productPayload.Price),
+		UnitsInStock: productPayload.UnitsInStock,
+	}
 
 	// Perform the DB operation to create the product
-	if err := api.Q.CreateProduct(c, &product); err != nil {
+	if err := api.Q.CreateProduct(c, product); err != nil {
 		log.Error("Error creating product", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": true, "msg": err.Error()})
 		return
@@ -94,7 +115,7 @@ func (api *API) UpdateProduct(c *gin.Context) {
 	log := logger.Get()
 
 	// Extract claims from the token
-	claims, err := auth.ExtractTokenMetadata(c, "access")
+	claims, err := auth.ExtractTokenMetadata(c)
 	if err != nil {
 		log.Error("Error extracting token metadata", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": true, "msg": err.Error()})
@@ -109,29 +130,51 @@ func (api *API) UpdateProduct(c *gin.Context) {
 	}
 
 	// Check if the user has permission to update the product
-	if !claims.Credentials["product:update"] {
+	if !claims.Credentials[auth.ProductUpdateCredential] {
 		log.Warn("Permission denied for product update", zap.String("role", claims.Role))
 		c.JSON(http.StatusForbidden, gin.H{"error": true, "msg": "permission denied"})
 		return
 	}
 
 	// Get the product ID from the URL parameter
-	productID := c.Param("id")
+	productID := uuid.MustParse(c.Param("id"))
 
 	// Bind the JSON request to the product struct
-	var product query.Product
-	if err := c.ShouldBindJSON(&product); err != nil {
+	var productPayload payload.ProductPayload
+	if err := c.ShouldBindJSON(&productPayload); err != nil {
 		log.Error("Invalid JSON for product", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": true, "msg": err.Error()})
 		return
 	}
 
+	validate := validator.NewValidator()
+	if err := validate.Struct(productPayload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": true,
+			"msg":   validator.ValidatorErrors(err),
+		})
+		return
+	}
+
+	product, err := api.Q.GetProductByID(c, productID)
+	if err != nil {
+		log.Error("Product not in database", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": true,
+			"msg":   "Unable to get product: " + err.Error(),
+		})
+		return
+	}
+
 	// Set the updated timestamp
-	product.ID = uuid.MustParse(productID)
+	product.Name = productPayload.Name
+	product.Description = &productPayload.Description
+	product.Price = decimal.NewFromFloat(productPayload.Price)
+	product.UnitsInStock = productPayload.UnitsInStock
 	product.UpdatedAt = time.Now()
 
 	// Perform the DB operation to update the product
-	if err := api.Q.UpdateProduct(c, &product); err != nil {
+	if err := api.Q.UpdateProduct(c, product); err != nil {
 		log.Error("Error updating product", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": true, "msg": err.Error()})
 		return
@@ -156,7 +199,7 @@ func (api *API) DeleteProduct(c *gin.Context) {
 	log := logger.Get()
 
 	// Extract claims from the token
-	claims, err := auth.ExtractTokenMetadata(c, "access")
+	claims, err := auth.ExtractTokenMetadata(c)
 	if err != nil {
 		log.Error("Error extracting token metadata", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": true, "msg": err.Error()})
@@ -171,7 +214,7 @@ func (api *API) DeleteProduct(c *gin.Context) {
 	}
 
 	// Check if the user has permission to delete the product
-	if !claims.Credentials["product:delete"] {
+	if !claims.Credentials[auth.ProductDeleteCredential] {
 		log.Warn("Permission denied for product deletion", zap.String("role", claims.Role))
 		c.JSON(http.StatusForbidden, gin.H{"error": true, "msg": "permission denied"})
 		return
@@ -205,7 +248,7 @@ func (api *API) ListProducts(c *gin.Context) {
 	log := logger.Get()
 
 	// Extract claims from the token
-	claims, err := auth.ExtractTokenMetadata(c, "access")
+	claims, err := auth.ExtractTokenMetadata(c)
 	if err != nil {
 		log.Error("Error extracting token metadata", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": true, "msg": err.Error()})
@@ -220,7 +263,7 @@ func (api *API) ListProducts(c *gin.Context) {
 	}
 
 	// Check if the user has permission to view products
-	if !claims.Credentials["product:read"] {
+	if !claims.Credentials[auth.ProductDeleteCredential] {
 		log.Warn("Permission denied for product listing", zap.String("role", claims.Role))
 		c.JSON(http.StatusForbidden, gin.H{"error": true, "msg": "permission denied"})
 		return
@@ -260,7 +303,7 @@ func (api *API) GetProduct(c *gin.Context) {
 	log := logger.Get()
 
 	// Extract claims from the token
-	claims, err := auth.ExtractTokenMetadata(c, "access")
+	claims, err := auth.ExtractTokenMetadata(c)
 	if err != nil {
 		log.Error("Error extracting token metadata", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": true, "msg": err.Error()})
@@ -275,7 +318,7 @@ func (api *API) GetProduct(c *gin.Context) {
 	}
 
 	// Check if the user has permission to view the product
-	if !claims.Credentials["product:read"] {
+	if !claims.Credentials[auth.ProductReadCredential] {
 		log.Warn("Permission denied for product read", zap.String("role", claims.Role))
 		c.JSON(http.StatusForbidden, gin.H{"error": true, "msg": "permission denied"})
 		return

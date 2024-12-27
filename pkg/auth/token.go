@@ -12,7 +12,6 @@ import (
 	"github.com/amosehiguese/ecommerce-api/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"go.uber.org/zap"
 )
 
 type Token struct {
@@ -52,7 +51,7 @@ func GenerateAccessToken(id string, role Role) (string, error) {
 	claims := make(jwt.MapClaims)
 	claims["id"] = id
 	claims["exp"] = time.Now().Add(time.Minute * time.Duration(minCount)).Unix()
-	claims["role"] = role
+	claims["role"] = role.String()
 
 	claims["product:create"] = false
 	claims["product:read"] = false
@@ -62,7 +61,6 @@ func GenerateAccessToken(id string, role Role) (string, error) {
 	claims["order:create"] = false
 	claims["order:read"] = false
 	claims["order:update"] = false
-	claims["order:cancel"] = false
 
 	for _, credential := range credentials {
 		claims[credential] = true
@@ -102,28 +100,9 @@ func ParseRefreshToken(refreshToken string) (int64, error) {
 	return strconv.ParseInt(strings.Split(refreshToken, ".")[1], 0, 64)
 }
 
-func AttachToCookie(c *gin.Context, accessToken string, refreshToken string) {
+func AttachToCookie(c *gin.Context, refreshToken string) {
 	cfg := config.Get()
 	log := logger.Get()
-
-	accessExp, err := strconv.Atoi(cfg.JWT.JwtSecretKeyExp)
-	if err != nil {
-		log.Error("Invalid token expiration value", zap.Error(err))
-		c.JSON(500, gin.H{"error": "Internal server error"})
-		return
-	}
-
-	accessExpiresAt := time.Now().Add(time.Duration(accessExp) * time.Hour)
-
-	c.SetCookie(
-		"access",
-		accessToken,
-		int(time.Until(accessExpiresAt).Seconds()),
-		"/",
-		cfg.Domain,
-		cfg.Env == "prod",
-		true,
-	)
 
 	refreshExpiresAt := time.Now().Add(30 * 24 * time.Hour)
 
@@ -144,16 +123,6 @@ func InvalidateTokenCookies(c *gin.Context) {
 	log := logger.Get()
 
 	c.SetCookie(
-		"access",
-		"",
-		-1,
-		"/",
-		"",
-		true,
-		true,
-	)
-
-	c.SetCookie(
 		"refresh",
 		"",
 		-1,
@@ -163,5 +132,5 @@ func InvalidateTokenCookies(c *gin.Context) {
 		true,
 	)
 
-	log.Info("Access and refresh tokens cookies invalidated!")
+	log.Info("refresh tokens cookies invalidated!")
 }

@@ -168,12 +168,13 @@ func (api *API) Login(c *gin.Context) {
 		return
 	}
 
-	auth.AttachToCookie(c, token.Access, token.Refresh)
+	auth.AttachToCookie(c, token.Refresh)
 
 	c.JSON(http.StatusOK, gin.H{
 		"error": false,
 		"tokens": gin.H{
-			"access": token.Access,
+			"access":  token.Access,
+			"refresh": token.Refresh,
 		},
 		"user": gin.H{
 			"id":    u.ID,
@@ -183,15 +184,192 @@ func (api *API) Login(c *gin.Context) {
 	})
 }
 
-// Logout godoc
-// @Summary User Logout
-// @Description Logs out the current user and invalidates their session
-// @Tags auth
-// @Security CookieAuth
-// @Success 204 {object} gin.H{}
-// @Failure 400 {object} gin.H{"error": true, "msg": "error message"}
-// @Router api/auth/logout [post]
-func (api *API) Logout(c *gin.Context) {
-	auth.InvalidateTokenCookies(c)
-	c.Status(204)
+// CreateAdmin godoc
+// @Summary      Create an admin user
+// @Description  Creates a new admin user with a hashed password.
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        admin body payload.RegisterPayload true "Admin creation payload"
+// @Success      200 {object} map[string]interface{} "Admin user created successfully"
+// @Failure      400 {object} map[string]interface{} "Invalid request data"
+// @Failure      500 {object} map[string]interface{} "Internal server error"
+// @Security     BearerAuth
+// @Router       api/auth/create-admin [post]
+func (api *API) CreateAdmin(c *gin.Context) {
+	log := logger.Get()
+
+	var adminPayload payload.RegisterPayload
+	if err := c.ShouldBindJSON(&adminPayload); err != nil {
+		log.Error("Invalid JSON for creating admin", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": true, "msg": err.Error()})
+		return
+	}
+	adminPayload.Role = "admin"
+
+	validate := validator.NewValidator()
+	if err := validate.Struct(adminPayload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": true,
+			"msg":   validator.ValidatorErrors(err),
+		})
+		return
+	}
+
+	role, err := auth.VerifyRole(adminPayload.Role)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": true,
+			"msg":   validator.ValidatorErrors(err),
+		})
+		return
+	}
+
+	admin := &query.User{
+		ID:           uuid.New(),
+		UpdatedAt:    time.Now(),
+		CreatedAt:    time.Now(),
+		FirstName:    adminPayload.FirstName,
+		LastName:     &adminPayload.LastName,
+		Email:        adminPayload.Email,
+		PasswordHash: utils.HashPassword(adminPayload.Password),
+		Role:         role.String(),
+	}
+
+	validate = validator.NewValidator()
+	if err := validate.Struct(admin); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": true,
+			"msg":   validator.ValidatorErrors(err),
+		})
+		return
+	}
+
+	admin, err = api.Q.CreateUser(c, admin)
+	if err != nil {
+		log.Error("Error creating admin user", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": true, "msg": err.Error()})
+		return
+	}
+
+	admin.PasswordHash = ""
+
+	log.Info("Admin user created successfully", zap.String("username", admin.FirstName))
+	c.JSON(http.StatusOK, gin.H{"error": false, "msg": "Admin user created successfully"})
+}
+
+func (api *API) RenewTokens(c *gin.Context) {
+	logger := logger.Get()
+	now := time.Now().Unix()
+
+	claims, err := auth.ExtractTokenMetadata(c)
+	if err != nil {
+		logger.Error("Error extracting token metadata", zap.String("error", err.Error()))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": true,
+			"msg":   err.Error(),
+		})
+		return
+	}
+
+	expiresAccessToken := claims.Exp
+
+	if now > expiresAccessToken {
+		logger.Warn("Access token expired", zap.Int64("expires_at", expiresAccessToken))
+
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": true,
+			"msg":   "unauthorized, check expiration time of your token",
+		})
+		return
+	}
+
+	renew := &Renew{}
+
+	if err := c.ShouldBindJSON(renew); err != nil {
+		logger.Error("Error binding JSON body", zap.String("error", err.Error()))
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": true,
+			"msg":   err.Error(),
+		})
+		return
+	}
+
+	expiresRefreshToken, err := auth.ParseRefreshToken(renew.RefreshToken)
+	if err != nil {
+		logger.Error("Error parsing refresh token", zap.String("error", err.Error()))
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": true,
+			"msg":   err.Error(),
+		})
+		return
+	}
+
+	if now < expiresRefreshToken {
+		userID := claims.UserID
+
+		u, err := api.Q.GetUserByID(c, userID)
+		if err != nil {
+			logger.Error("User not found", zap.String("user_id", userID.String()))
+
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": true,
+				"msg":   "user with the given ID is not found",
+			})
+			return
+		}
+
+		role, err := auth.VerifyRole(u.Role)
+		if err != nil {
+			logger.Error("Error getting credentials by role", zap.String("role", u.Role), zap.String("error", err.Error()))
+
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": true,
+				"msg":   err.Error(),
+			})
+			return
+		}
+
+		tokens, err := auth.GenerateNewToken(userID.String(), role)
+		if err != nil {
+			logger.Error("Error generating new tokens", zap.String("error", err.Error()))
+
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": true,
+				"msg":   err.Error(),
+			})
+			return
+		}
+
+		// Create a new Redis connection
+		auth.AttachToCookie(c, tokens.Refresh)
+
+		// Log the successful token renewal
+		logger.Info("Token renewal successful", zap.String("user_id", userID.String()))
+
+		// Return tokens
+		c.JSON(http.StatusOK, gin.H{
+			"error": false,
+			"msg":   nil,
+			"tokens": gin.H{
+				"access":  tokens.Access,
+				"refresh": tokens.Refresh,
+			},
+		})
+	} else {
+		// Log the session ended error
+		logger.Warn("Unauthorized, session ended earlier")
+
+		// Return status 401 and unauthorized error message
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": true,
+			"msg":   "unauthorized, your session was ended earlier",
+		})
+	}
+}
+
+type Renew struct {
+	RefreshToken string `json:"refresh_token"`
 }

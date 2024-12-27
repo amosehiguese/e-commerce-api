@@ -9,8 +9,10 @@ DATABASE_PASSWORD="${DB_PASSWORD}"
 DATABASE_NAME="${DB_NAME}"
 DATABASE_PORT="${DB_PORT}"
 
+
 if [[ -z "${SKIP_DOCKER}" ]]
 then
+  # Start PostgreSQL container
   docker run --rm -d --name postgresql \
     -p ${DATABASE_PORT}:5432 \
     -e POSTGRES_PASSWORD=${DATABASE_PASSWORD} \
@@ -19,6 +21,7 @@ then
     postgres:15.2
 fi
 
+# Wait for PostgreSQL to be available
 export PGPASSWORD="${DATABASE_PASSWORD}"
 until docker exec -it postgresql psql -U "${DATABASE_USER}" "${DATABASE_NAME}" -c '\q'; do
   >&2 echo "Postgres is still unavailable - sleeping"

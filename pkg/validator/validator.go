@@ -3,11 +3,13 @@ package validator
 import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 func NewValidator() *validator.Validate {
 	validate := validator.New()
 	_ = validate.RegisterValidation("uuid", validateUUID)
+	_ = validate.RegisterValidation("decimal", validateDecimal)
 
 	return validate
 }
@@ -18,6 +20,11 @@ func validateUUID(f validator.FieldLevel) bool {
 		return true
 	}
 	return false
+}
+
+func validateDecimal(f validator.FieldLevel) bool {
+	field := f.Field().Interface().(decimal.Decimal)
+	return field.GreaterThan(decimal.NewFromFloat(0))
 }
 
 func ValidatorErrors(err error) map[string]string {

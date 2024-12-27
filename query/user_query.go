@@ -95,3 +95,42 @@ func (q *Query) GetUserByEmail(ctx context.Context, email string) (*User, error)
 	log.Info("Successfully fetched user by email", zap.String("email", email), zap.String("user_id", user.ID.String()))
 	return &user, nil
 }
+
+func (q *Query) GetUserByID(ctx context.Context, id uuid.UUID) (*User, error) {
+	log := logger.Get()
+	query := `
+		SELECT id, first_name, last_name, email, password_hash, role, created_at, updated_at
+		FROM "user"
+		WHERE id = $1
+	`
+
+	// Log the query execution
+	log.Info("Executing query to fetch user by id", zap.String("id", id.String()))
+
+	var user User
+
+	row := q.DB.QueryRowContext(ctx, query, id)
+	err := row.Scan(
+		&user.ID,
+		&user.FirstName,
+		&user.LastName,
+		&user.Email,
+		&user.PasswordHash,
+		&user.Role,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			log.Warn("No user found for the provided id", zap.String("id", id.String()))
+			return nil, nil
+		}
+
+		log.Error("Failed to fetch user by id", zap.String("id", id.String()), zap.Error(err))
+		return nil, err
+	}
+
+	log.Info("Successfully fetched user by id", zap.String("id", id.String()))
+	return &user, nil
+}

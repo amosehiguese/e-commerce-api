@@ -9,6 +9,10 @@ import (
 	"github.com/amosehiguese/ecommerce-api/query"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+
+	_ "github.com/amosehiguese/ecommerce-api/docs"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func SetUp(dbconn *sql.DB, cfg *config.Config) *gin.Engine {
@@ -26,6 +30,9 @@ func SetUp(dbconn *sql.DB, cfg *config.Config) *gin.Engine {
 	// Initialize API
 	a := api.NewAPI(q, cfg)
 
+	// Swagger endpoint
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	// Health
 	router.GET("/_healthz", a.HealthCheck)
 
@@ -36,6 +43,7 @@ func SetUp(dbconn *sql.DB, cfg *config.Config) *gin.Engine {
 	// Protected routes (authentication required)
 	auth := router.Group("/api", middleware.JWTProtected())
 	{
+		RegisterTokenRenewal(auth, a)
 		RegisterProductRoutes(auth, a)
 		RegisterOrderRoutes(auth, a)
 	}

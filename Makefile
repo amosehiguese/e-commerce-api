@@ -45,7 +45,7 @@ run: build
 	$(BUILD_DIR)/$(APP_NAME)
 
 test:
-	$(GO) test ./... -v
+	$(GO) test ./... -v $(TEST_NAME)
 	@echo "Tests executed."
 
 lint:

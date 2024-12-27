@@ -11,7 +11,7 @@ import (
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Extract the token metadata
-		tokenMetadata, err := auth.ExtractTokenMetadata(c, "access")
+		tokenMetadata, err := auth.ExtractTokenMetadata(c)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 			c.Abort()

@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,7 +14,7 @@ type Product struct {
 	ID           uuid.UUID       `json:"id" validate:"required,uuid4"`
 	Name         string          `json:"name" validate:"required,min=3,max=255"`
 	Description  *string         `json:"description,omitempty" validate:"omitempty,max=1000"`
-	Price        decimal.Decimal `json:"price" validate:"required,gt=0"`
+	Price        decimal.Decimal `json:"price" validate:"required,gt=0,decimal"`
 	UnitsInStock int             `json:"units_in_stock" validate:"required,gte=0"`
 	CreatedAt    time.Time       `json:"created_at" validate:"required"`
 	UpdatedAt    time.Time       `json:"updated_at" validate:"required"`
@@ -76,13 +77,29 @@ func (q *Query) GetAllProducts(ctx context.Context) ([]Product, error) {
 
 // UpdateProduct updates the product's details in the database.
 func (q *Query) UpdateProduct(ctx context.Context, product *Product) error {
+	// Start a transaction to handle multiple operations atomically, if needed
 	query := `
 		UPDATE "product"
 		SET name = $1, description = $2, price = $3, units_in_stock = $4, updated_at = $5
 		WHERE id = $6
-	`
-	_, err := q.DB.ExecContext(ctx, query, product.Name, product.Description, product.Price, product.UnitsInStock, product.UpdatedAt, product.ID)
-	return err
+		RETURNING id` // Use RETURNING to check if any rows were updated
+
+	var updatedID string
+	err := q.DB.QueryRowContext(ctx, query, product.Name, product.Description, product.Price, product.UnitsInStock, product.UpdatedAt, product.ID).Scan(&updatedID)
+
+	// Check if any rows were updated
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// No rows were updated, handle it (e.g., log an error or return a custom error message)
+			return fmt.Errorf("product with id %v not found", product.ID)
+		}
+		return fmt.Errorf("failed to update product: %w", err)
+	}
+
+	// You can also check the `updatedID` to confirm if it matches the expected product ID
+	fmt.Printf("Product with ID %s was successfully updated.\n", updatedID)
+
+	return nil
 }
 
 // DeleteProduct deletes a product by its ID.
